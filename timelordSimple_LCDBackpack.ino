@@ -6,10 +6,11 @@
 
     Geoffrey Todd Lamke, MD
 
-    Last modified  2017/04/16  :-)
+    Last modified  2017/04/17  :-)
 */
 
-#include "DHT.h"         //include DHT library
+#include "DHT.h"         //include DHT library duplicate library error
+
 #include <Wire.h>
 #include <DS1307RTC.h>
 #include <TimeLord.h>
@@ -28,7 +29,7 @@ LiquidCrystal_I2C  lcd(0x3F, 2, 1, 0, 4, 5, 6, 7); // 0x3F is the I2C bus addres
 #define REDPIN 5
 #define GREENPIN 6
 #define BLUEPIN 3
-#define DELAY 15000     //Sets the global delay variable.
+#define DELAY 5000     //Sets the global delay variable.
 
 /* INSTANTIATE DHT OBJECT */
 DHT dht(DHTPIN, DHTTYPE);
@@ -113,10 +114,11 @@ void loop() {
   float t = (32 + (9 * (dht.readTemperature())) / 5); // read Temperature as Farenheight
 
   /*  Start the LCD printing temperatures
-     _    ___ ___
-    | |  / __|   \
-    | |_| (__| |) |
-    |____\___|___/  */
+    _    ___ ___    _____     __  _  _
+    | |  / __|   \  |_   _|   / / | || |
+    | |_| (__| |) |   | |    / /  | __ |
+    |____\___|___/    |_|   /_/   |_||_|
+  */
 
   lcd.clear();
   lcd.home (); // set cursor to 0,0
@@ -162,6 +164,17 @@ void loop() {
     Serial.print("Minutes into the current Day: ");
     Serial.println(dayMinNow);
 #endif
+
+
+
+    /*Timelord functions
+
+      _____ _           _            _
+      |_   _(_)_ __  ___| |___ _ _ __| |
+       | | | | '  \/ -_) / _ \ '_/ _` |
+       |_| |_|_|_|_\___|_\___/_| \__,_|
+
+    */
     // Set sunTime Array to today's DateUses the Time library to give Timelord the current date
     sunTime[3] = day();
     sunTime[4] = month();
@@ -170,17 +183,20 @@ void loop() {
     /* Sunrise: */
     tardis.SunRise(sunTime); // Computes Sun Rise.
     mSunrise = sunTime[2] * 60 + sunTime[1];  //Minutes after midnight that sunrise occurs
-    
-    String sunriseTime = ((String)sunTime[tl_hour]) + ":" + ((String) sunTime[tl_minute]);
+    String sunriseTime = (String)(sunTime[tl_hour]) + ":" + ((String) sunTime[tl_minute]);   //WOrking on how to make this double digits
+    byte timeRise[] = {sunTime[tl_hour], sunTime[tl_minute]};
 
+    //    Serial.println(timeSunrise[0]);
+    //    Serial.println(timeSunrise[1]);
 
     /* Sunset: */
     tardis.SunSet(sunTime); // Computes Sun Set.
     mSunset = sunTime[2] * 60 + sunTime[1];
-    String sunsetTime = ((String)sunTime[tl_hour]) + ":" + ((String) sunTime[tl_minute]);
-//    int hrs = print2digits(int (sunTime[tl_hour]));   Trying to get this to print double digit sunrise and sunset time.  
-//    Serial.println(hrs);                              Not sure why what object it's returning that's getting converted.
+    String sunsetTime = ((String)sunTime[tl_hour]) + ":" + ((String) sunTime[tl_minute]);  //working on how to make double digits and get rid of it
+    byte timeSet[] = {sunTime[tl_hour], sunTime[tl_minute]};
 
+    //Current time array
+    byte nowTime[] = {hour(), minute()};
 
 #if DEBUG ==1
     Serial.print("Sunrise: ");
@@ -214,31 +230,29 @@ void loop() {
 #endif
 
     /*  Start the LCD printing temperatures
-       _    ___ ___
-      | |  / __|   \
-      | |_| (__| |) |
-      |____\___|___/  */
+       _    ___ ___    _____ ___ __  __ ___
+      | |  / __|   \  |_   _|_ _|  \/  | __|
+      | |_| (__| |) |   | |  | || |\/| | _|
+      |____\___|___/    |_| |___|_|  |_|___|
+    */
 
     delay(DELAY);
     lcd.clear();
     lcd.home ();                // set cursor to 0,0
-    lcd.print("Sunrise: ");
-    lcd.setCursor (10, 0);
-    lcd.print(sunriseTime);
+    lcd.print("Rise:");
+    printTimeLCD(timeRise);
     lcd.setCursor (0, 1);       // go to start of 2nd line
-    lcd.print("Sunset: ");
-    lcd.setCursor (10, 1);
-    lcd.print(sunsetTime);
- 
-    
-//    lcd.print("% dayleft: ");
-//    lcd.setCursor (12, 0);
-//    lcd.print(pctDayLeft);
-//
-//    lcd.setCursor (0, 1);       // go to start of 2nd line
-//    lcd.print("Sunset: ");
-//    lcd.setCursor (12, 1);
-//    lcd.print(mLeftInDay);
+    lcd.print("Set: ");
+    printTimeLCD(timeSet);
+    lcd.setCursor (11, 0);
+    lcd.print("Time: ");
+    lcd.setCursor (11, 1);
+    printTimeLCD(nowTime);
+
+    //    printLCD2Digits(minute());
+
+
+
 
     /* SET THE COLOR SCHEME DEPENDING ON TEMPERATURE
         Currently set for summer and checking every 3 seconds which is excessive.
@@ -252,7 +266,7 @@ void loop() {
     if
     (((dayMinNow >= (mSunset - 10)) && (dayMinNow <= (mSunset + 90)))
         ||
-        ((dayMinNow >= (mSunrise - 30)) && (dayMinNow <= (mSunrise + 120)))) {
+        ((dayMinNow >= (mSunrise - 10)) && (dayMinNow <= (mSunrise + 60)))) {
       if (t > 85) {
         analogWrite(REDPIN, 255);
         analogWrite(BLUEPIN, 0);
@@ -292,12 +306,21 @@ void loop() {
     delay(DELAY);
   }
 }
-int print2digits(int number) {
+int print2digits(int number) {        //Serial Print 2 digits
   if (number >= 0 && number < 10) {
     Serial.print('0');
   }
   Serial.print(number);
 }
+
+void printLCD2Digits(int digits) {
+  // utility function for digital clock display: prints leading 0
+  if (digits < 10)
+    lcd.print('0');
+  lcd.print(digits);
+}
+
+
 void blinkWhite() {
   //BLINK WHITE LIGHTS STARTUP TO CONFIRM ACTIVITY
   analogWrite(REDPIN, 255);
@@ -307,6 +330,17 @@ void blinkWhite() {
   analogWrite(REDPIN, 0);
   analogWrite(BLUEPIN, 0);
   analogWrite(GREENPIN, 0);
+}
+void printTimeLCD(byte timearray[]) {
+  if (timearray[0] < 10) {
+    lcd.print("0");
+  }
+  lcd.print(timearray[0]);
+  lcd.print(":");
+  if (timearray[1] < 10) {
+    lcd.print("0");
+  }
+  lcd.print(timearray[1]);
 }
 
 
