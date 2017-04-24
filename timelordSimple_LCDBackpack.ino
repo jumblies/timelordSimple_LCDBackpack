@@ -6,11 +6,10 @@
 
     Geoffrey Todd Lamke, MD
 
-    Last modified  2017/04/17  :-)
+    Last modified  2017/04/18  :-)
 */
 
-#include "DHT.h"         //include DHT library duplicate library error
-
+#include <DHT.h>         //include DHT library duplicate library error
 #include <Wire.h>
 #include <DS1307RTC.h>
 #include <TimeLord.h>
@@ -18,13 +17,15 @@
 #include <LCD.h>
 #include <LiquidCrystal_I2C.h>
 
+/*DEBUGGING SETTINGS    *******************************************************************/
+#define DEBUG 1  // Set to 1 to enable debug messages through serial port monitor
+#define TIMEDRIFT 0 //Set to 1 enable systemtime and RTC sync in the loop
+
 LiquidCrystal_I2C  lcd(0x3F, 2, 1, 0, 4, 5, 6, 7); // 0x3F is the I2C bus address For the Chinese Sensor
 //2 x 16 display
 
-
-
 // DHT11 Temperature and Humidity Sensors
-#define DHTPIN 13         //define as DHTPIN the Pin 13 used to connect the Sensor
+#define DHTPIN 12        //define as DHTPIN the Pin 12 (13 activates LED)
 #define DHTTYPE DHT11    //define the sensor used(DHT11)
 #define REDPIN 5
 #define GREENPIN 6
@@ -34,12 +35,12 @@ LiquidCrystal_I2C  lcd(0x3F, 2, 1, 0, 4, 5, 6, 7); // 0x3F is the I2C bus addres
 /* INSTANTIATE DHT OBJECT */
 DHT dht(DHTPIN, DHTTYPE);
 
-/*DEBUGGING SETTINGS    *******************************************************************/
-#define DEBUG 1  // Set to 1 to enable debug messages through serial port monitor
-#define TIMEDRIFT 0 //Set to 1 enable systemtime and RTC sync in the loop
-
 /*GLOBAL VARIABLES*/
-byte sunTime[]  = {0, 0, 0, 1, 1, 13}; //Byte Array for storing date to feed into Timelord
+// NONBLOCKING TIMER
+unsigned long previousMillis = 0;        // will store last time LED was updated
+const long interval = 5000;
+
+byte sunTime[6]  = {}; //Byte Array for storing date to feed into Timelord
 int dayMinNow, dayMinLast = -1, hourNow, hourLast = -1, minOfDay; //time parts to trigger various actions.
 // -1 init so hour/min last inequality is triggered the first time around
 int mSunrise, mSunset; //sunrise and sunset expressed as minute of day (0-1439)
@@ -64,11 +65,13 @@ void setup() {
   lcd.setBacklightPin(3, POSITIVE);
   lcd.setBacklight(HIGH);
 
-
+# if DEBUG == 1
   /* FIRE UP SERIAL */
   Serial.begin(9600);
-  while (!Serial) ; // wait for serial
-  delay(200);
+  while (!Serial) { // wait for serial
+    delay(200);
+  }
+#endif
 
   /* FIRE UP DHT SENSOR */
   dht.begin();
@@ -86,11 +89,12 @@ void setup() {
     Serial.println("RTC has set the system time");
   }
   blinkWhite();
-
-
 }
 
 void loop() {
+  unsigned long currentMillis = millis();  //Nonblocking timer loop
+
+
   //Set the system time from the RTC if there is suspicion of drift
   //Empiric testing indicates that the time library is routinely syncing RTC to SYSTEM
 # if TIMEDRIFT == 1
@@ -106,30 +110,43 @@ void loop() {
   tmElements_t tm; //Instantiate time object
 
   /* CHECK TIME AND SENSORS
-    ___  _  _ _____
-    |   \| || |_   _|
-    | |) | __ | | |
-    |___/|_||_| |_|  */
+       ___  _  _ _____
+      |   \| || |_   _|
+      | |) | __ | | |
+      |___/|_||_| |_|
+  */
   float h = dht.readHumidity();    // reading Humidity
   float t = (32 + (9 * (dht.readTemperature())) / 5); // read Temperature as Farenheight
 
   /*  Start the LCD printing temperatures
-    _    ___ ___    _____     __  _  _
-    | |  / __|   \  |_   _|   / / | || |
-    | |_| (__| |) |   | |    / /  | __ |
-    |____\___|___/    |_|   /_/   |_||_|
+       _    ___ ___    _____     __  _  _
+      | |  / __|   \  |_   _|   / / | || |
+      | |_| (__| |) |   | |    / /  | __ |
+      |____\___|___/    |_|   /_/   |_||_|
   */
+
+  if (currentMillis - previousMillis >= interval) {
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+    Serial.println(currentMillis);
+  }
+
 
   lcd.clear();
   lcd.home (); // set cursor to 0,0
-  lcd.print("temp: ");
+  lcd.print("Temp: ");
   lcd.setCursor (6, 0);
-  lcd.print(t);
+  lcd.print(t, 1);            // One decimal place
+  lcd.print((char)223);       //Prints the degree symbol
 
   lcd.setCursor (0, 1);       // go to start of 2nd line
-  lcd.print("hum: ");
+  lcd.print("Hum: ");
   lcd.setCursor (6, 1);
-  lcd.print(h);
+  lcd.print(h, 1);            // One decimal place
+  lcd.print((char)37);        // Prints the percent symbol
+
+
+
 
   // check if any reads failed and exit early (to try again).
   if (isnan(h) || isnan(t)) {
@@ -165,14 +182,11 @@ void loop() {
     Serial.println(dayMinNow);
 #endif
 
-
-
     /*Timelord functions
-
-      _____ _           _            _
-      |_   _(_)_ __  ___| |___ _ _ __| |
-       | | | | '  \/ -_) / _ \ '_/ _` |
-       |_| |_|_|_|_\___|_\___/_| \__,_|
+        _____ _           _            _
+       |_   _(_)_ __  ___| |___ _ _ __| |
+         | | | | '  \/ -_) / _ \ '_/ _` |
+         |_| |_|_|_|_\___|_\___/_| \__,_|
 
     */
     // Set sunTime Array to today's DateUses the Time library to give Timelord the current date
